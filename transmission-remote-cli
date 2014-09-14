@@ -2001,15 +2001,15 @@ class Interface:
         # A quick stab  making an option for the incomplete part of the bar.
         # I would like to make that optional eg if you do not chose a colour  (its set to null) 
         # then we do as the original version did but my Python foo is very bad! how the hell do i check if a key exists in an array!
-        #if 'title_incomplete' in self.colors.id
+        #if 'id' in self.colors('title_incomplete'):
         #    tag_notdone = tag
         #else:
-        #try:
-        icolor = curses.color_pair(self.colors.id('title_incomplete'))
-        tag_notdone = tag + icolor
-        #except IndexError:
+        try:
+            icolor = curses.color_pair(self.colors.id('title_incomplete'))
+            tag_notdone = tag + icolor
+        except KeyError:
         #else:
-        #  tag_notdone = tag
+            tag_notdone = tag
 
         if focused:
             tag += curses.A_BOLD
