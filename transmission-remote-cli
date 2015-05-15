@@ -150,7 +150,6 @@ config.set('Colors', 'title_idle',       'bg:cyan,fg:black')
 config.set('Colors', 'title_verify',     'bg:magenta,fg:black')
 config.set('Colors', 'title_paused',     'bg:black,fg:white')
 config.set('Colors', 'title_error',      'bg:red,fg:white')
-config.set('Colors', 'title_incomplete', 'bg:black,fg:white')
 config.set('Colors', 'download_rate',    'bg:black,fg:blue')
 config.set('Colors', 'upload_rate',      'bg:black,fg:red')
 config.set('Colors', 'eta+ratio',        'bg:black,fg:white')
@@ -173,12 +172,11 @@ class ColorManager(object):
         if self.term_has_colors:
             curses.use_default_colors()
         for name in config.keys():
-            if config[name]  != 'invert':
-              self.config[name] = self._parse_color_pair(config[name])
-              if self.term_has_colors:
-                  curses.init_pair(self.config[name]['id'],
-                                   self.config[name]['fg'],
-                                   self.config[name]['bg'])
+            self.config[name] = self._parse_color_pair(config[name])
+            if self.term_has_colors:
+                curses.init_pair(self.config[name]['id'],
+                                 self.config[name]['fg'],
+                                 self.config[name]['bg'])
 
     def _parse_color_pair(self, pair):
         # BG and FG are intentionally switched here because colors are always
@@ -2013,24 +2011,9 @@ class Interface(object):
 
         tag = curses.A_REVERSE
         tag_done = tag + color
-
-        # A quick stab  making an option for the incomplete part of the bar.
-        # I would like to make that optional eg if you do not chose a colour  (its set to null) 
-        # then we do as the original version did but my Python foo is very bad! how the hell do i check if a key exists in an array!
-        #if 'title_incomplete' in self.colors.id
-        #    tag_notdone = tag
-        #else:
-        #try:
-        icolor = curses.color_pair(self.colors.id('title_incomplete'))
-        tag_notdone = tag + icolor
-        #except IndexError:
-        #else:
-        #  tag_notdone = tag
-
         if focused:
             tag += curses.A_BOLD
             tag_done += curses.A_BOLD
-            tag_notdone += curses.A_BOLD
 
         if self.torrentname_is_progressbar:
             bar_width = int(float(width) * (float(percentDone)/100))
@@ -2046,7 +2029,7 @@ class Interface(object):
                     bar_complete += bar_incomplete[0]
                     bar_incomplete = bar_incomplete[1:]
             self.pad.addstr(ypos, 0, self.enc(bar_complete), tag_done)
-            self.pad.addstr(ypos, len_columns(bar_complete), self.enc(bar_incomplete), tag_notdone)
+            self.pad.addstr(ypos, len_columns(bar_complete), self.enc(bar_incomplete), tag)
         else:
             self.pad.addstr(ypos, 0, self.enc(title), tag_done)
 
