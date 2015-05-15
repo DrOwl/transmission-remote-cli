@@ -143,6 +143,9 @@ config.set('Misc', 'blank_lines', 'True')
 config.set('Misc', 'torrentname_is_progressbar', 'True')
 config.set('Misc', 'file_viewer', 'xdg-open %%s')
 config.set('Misc', 'file_open_in_terminal', 'True')
+config.set('Misc', 'copy_link_to_clipboard', 'True')
+config.set('Misc', 'copy_link_to_file', 'False')
+config.set('Misc', 'copy_link_to_dialog', 'False')
 config.add_section('Colors')
 config.set('Colors', 'title_seed',        'bg:green,fg:black')
 config.set('Colors', 'title_download',    'bg:blue,fg:black')
@@ -906,6 +909,9 @@ class Interface(object):
         self.torrentname_is_progressbar = config.getboolean('Misc', 'torrentname_is_progressbar')
         self.file_viewer    = config.get('Misc', 'file_viewer')
         self.file_open_in_terminal = config.getboolean('Misc', 'file_open_in_terminal')
+        self.copy_link_to_clipboard = config.getboolean('Misc', 'copy_link_to_clipboard')
+        self.copy_link_to_file = config.getboolean('Misc', 'copy_link_to_file')
+        self.copy_link_to_dialog = config.getboolean('Misc', 'copy_link_to_dialog')
 
         self.torrents         = server.get_torrent_list(self.sort_orders)
         self.stats            = server.get_global_stats()
@@ -1414,16 +1420,24 @@ class Interface(object):
             server.increase_bandwidth_priority(self.torrents[self.focus]['id'])
 
     def copy_magnet_link(self, c):
-        if self.focus > -1 and features['clipboard']:
-            magnet = self.torrents[self.focus]['magnetLink']
-            try:
-                xerox.copy(magnet)
-            except xerox.ToolNotFound:
-                message = 'Could not copy to the clipboard\n'
-                message += 'You probably do not have an appropriate\n'
-                message += 'tool to handle the clipboard on your system.\n'
-                message += 'Refer to the xerox documentation.'
-                self.dialog_ok(message)
+        if self.focus > -1:
+            if features['clipboard'] and self.copy_link_to_clipboard:
+                magnet = self.torrents[self.focus]['magnetLink']
+                try:
+                    xerox.copy(magnet)
+                except xerox.ToolNotFound:
+                    message = 'Could not copy to the clipboard\n'
+                    message += 'You probably do not have an appropriate\n'
+                    message += 'tool to handle the clipboard on your system.\n'
+                    message += 'Refer to the xerox documentation.'
+                    self.dialog_ok(message)
+            if self.copy_link_to_file:
+                magnet = self.torrents[self.focus]['magnetLink']
+                name = self.torrents[self.focus]['name']
+                copy_link_to_file(magnet, name)
+            if self.copy_link_to_dialog:
+                magnet = self.torrents[self.focus]['magnetLink']
+                self.dialog_ok(magnet)
 
     def move_queue(self, direction):
         # queue was implemmented in Transmission v2.4
@@ -2959,9 +2973,10 @@ class Interface(object):
         curses.halfdelay(10)
 
     def dialog_ok(self, message):
-        height = 3 + message.count("\n")
-        width  = max(max(map(lambda x: len_columns(x), message.split("\n"))), 40) + 4
-        win = self.window(height, width, message=message)
+        wrapped = "\n".join(chunkstring(message, self.width - 4))
+        height = 3 + wrapped.count("\n")
+        width  = max(max(map(lambda x: len_columns(x), wrapped.split("\n"))), 40) + 4
+        win = self.window(height, width, message=wrapped)
         while True:
             if win.getch() >= 0:
                 self.clear_userinput(win)
@@ -3604,6 +3619,16 @@ def debug(data):
             file.write("\n====================\n" + pp.pformat(data) + "\n====================\n\n")
         file.close
 
+def copy_link_to_file(link, name):
+    copy_log_file = os.environ['HOME'] + '/transmission-remote-cli-link.log'
+    file = open(copy_log_file, 'a')
+    if isinstance(link, str) or isinstance(link, unicode) or isinstance(name, str) or isinstance(name, unicode):
+        file.write("'" + name.encode('UTF-8', 'replace') + "' '" + link.encode('UTF-8', 'replace') + "'\n")
+    else:
+        import pprint
+        pp = pprint.PrettyPrinter()
+        file.write("'" + pp.pformat(name) + "' '" + pp.pformat(link) + "'\n")
+    file.close
 
 def quit(msg='', exitcode=0):
     try:
@@ -3727,6 +3752,8 @@ def parse_sort_str(sort_str):
             sort_orders.append( { 'name':x[0], 'reverse':False } )
     return sort_orders
 
+def chunkstring(string, length):
+    return (string[0+i:length+i] for i in range(0, len(string), length))
 
 def show_version(option, opt_str, value, parser):
     quit("transmission-remote-cli %s  (supports Transmission %s-%s)\n" % \
