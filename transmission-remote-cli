@@ -144,27 +144,24 @@ config.set('Misc', 'torrentname_is_progressbar', 'True')
 config.set('Misc', 'file_viewer', 'xdg-open %%s')
 config.set('Misc', 'file_open_in_terminal', 'True')
 config.add_section('Colors')
-config.set('Colors', 'title_seed',        'bg:green,fg:black')
-config.set('Colors', 'title_download',    'bg:blue,fg:black')
-config.set('Colors', 'title_idle',        'bg:cyan,fg:black')
-config.set('Colors', 'title_verify',      'bg:magenta,fg:black')
-config.set('Colors', 'title_paused',      'bg:black,fg:white')
-config.set('Colors', 'title_error',       'bg:red,fg:white')
-config.set('Colors', 'title_incomplete',  'default')
-config.set('Colors', 'title_focused',     'default')
-config.set('Colors', 'title_focused_inc', 'default')
-config.set('Colors', 'download_rate',     'bg:black,fg:blue')
-config.set('Colors', 'upload_rate',       'bg:black,fg:red')
-config.set('Colors', 'eta+ratio',         'bg:black,fg:white')
-config.set('Colors', 'filter_status',     'bg:red,fg:black')
-config.set('Colors', 'dialog',            'bg:black,fg:white')
-config.set('Colors', 'dialog_important',  'bg:red,fg:black')
-config.set('Colors', 'button',            'bg:white,fg:black')
-config.set('Colors', 'button_focused',    'bg:black,fg:white')
-config.set('Colors', 'file_prio_high',    'bg:red,fg:black')
-config.set('Colors', 'file_prio_normal',  'bg:white,fg:black')
-config.set('Colors', 'file_prio_low',     'bg:yellow,fg:black')
-config.set('Colors', 'file_prio_off',     'bg:blue,fg:black')
+config.set('Colors', 'title_seed',       'bg:green,fg:black')
+config.set('Colors', 'title_download',   'bg:blue,fg:black')
+config.set('Colors', 'title_idle',       'bg:cyan,fg:black')
+config.set('Colors', 'title_verify',     'bg:magenta,fg:black')
+config.set('Colors', 'title_paused',     'bg:black,fg:white')
+config.set('Colors', 'title_error',      'bg:red,fg:white')
+config.set('Colors', 'download_rate',    'bg:black,fg:blue')
+config.set('Colors', 'upload_rate',      'bg:black,fg:red')
+config.set('Colors', 'eta+ratio',        'bg:black,fg:white')
+config.set('Colors', 'filter_status',    'bg:red,fg:black')
+config.set('Colors', 'dialog',           'bg:black,fg:white')
+config.set('Colors', 'dialog_important', 'bg:red,fg:black')
+config.set('Colors', 'button',           'bg:white,fg:black')
+config.set('Colors', 'button_focused',   'bg:black,fg:white')
+config.set('Colors', 'file_prio_high',   'bg:red,fg:black')
+config.set('Colors', 'file_prio_normal', 'bg:white,fg:black')
+config.set('Colors', 'file_prio_low',    'bg:yellow,fg:black')
+config.set('Colors', 'file_prio_off',    'bg:blue,fg:black')
 
 
 class ColorManager(object):
@@ -175,12 +172,11 @@ class ColorManager(object):
         if self.term_has_colors:
             curses.use_default_colors()
         for name in config.keys():
-            if config[name]  != 'default':
-              self.config[name] = self._parse_color_pair(config[name])
-              if self.term_has_colors:
-                  curses.init_pair(self.config[name]['id'],
-                                   self.config[name]['fg'],
-                                   self.config[name]['bg'])
+            self.config[name] = self._parse_color_pair(config[name])
+            if self.term_has_colors:
+                curses.init_pair(self.config[name]['id'],
+                                 self.config[name]['fg'],
+                                 self.config[name]['bg'])
 
     def _parse_color_pair(self, pair):
         # BG and FG are intentionally switched here because colors are always
@@ -2015,36 +2011,9 @@ class Interface(object):
 
         tag = curses.A_REVERSE
         tag_done = tag + color
-
-        # A quick stab  making an option for the incomplete part of the bar.
-        # I would like to make that optional eg if you do not chose a colour  (its set to null) 
-        # then we do as the original version did but my Python foo is very bad! how the hell do i check if a key exists in an array!
-        #if 'id' in self.colors('title_incomplete'):
-        #    tag_notdone = tag
-        #else:
-        try:
-            icolor = curses.color_pair(self.colors.id('title_incomplete'))
-            tag_notdone = tag + icolor
-        except KeyError:
-            tag_notdone = tag
-
         if focused:
-            tag = curses.A_REVERSE
-            try:
-                fcolor = curses.color_pair(self.colors.id('title_focused'))
-                tag = tag + fcolor
-                tag_done = tag + fcolor
-                tag_notdone = tag + fcolor
-            except KeyError:
-                fcolor = ''
-            try:
-                ficolor = curses.color_pair(self.colors.id('title_focused_inc'))
-                tag_notdone = ficolor
-            except KeyError:
-                ficolor = ''
             tag += curses.A_BOLD
             tag_done += curses.A_BOLD
-            tag_notdone += curses.A_BOLD
 
         if self.torrentname_is_progressbar:
             bar_width = int(float(width) * (float(percentDone)/100))
@@ -2060,7 +2029,7 @@ class Interface(object):
                     bar_complete += bar_incomplete[0]
                     bar_incomplete = bar_incomplete[1:]
             self.pad.addstr(ypos, 0, self.enc(bar_complete), tag_done)
-            self.pad.addstr(ypos, len_columns(bar_complete), self.enc(bar_incomplete), tag_notdone)
+            self.pad.addstr(ypos, len_columns(bar_complete), self.enc(bar_incomplete), tag)
         else:
             self.pad.addstr(ypos, 0, self.enc(title), tag_done)
 
