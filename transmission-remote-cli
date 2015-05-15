@@ -150,6 +150,9 @@ config.set('Colors', 'title_idle',       'bg:cyan,fg:black')
 config.set('Colors', 'title_verify',     'bg:magenta,fg:black')
 config.set('Colors', 'title_paused',     'bg:black,fg:white')
 config.set('Colors', 'title_error',      'bg:red,fg:white')
+config.set('Colors', 'title_incomplete',  'default')
+config.set('Colors', 'title_focused',     'default')
+config.set('Colors', 'title_focused_inc', 'default')
 config.set('Colors', 'download_rate',    'bg:black,fg:blue')
 config.set('Colors', 'upload_rate',      'bg:black,fg:red')
 config.set('Colors', 'eta+ratio',        'bg:black,fg:white')
@@ -172,6 +175,8 @@ class ColorManager(object):
         if self.term_has_colors:
             curses.use_default_colors()
         for name in config.keys():
+            if config[name] == 'default':
+                continue
             self.config[name] = self._parse_color_pair(config[name])
             if self.term_has_colors:
                 curses.init_pair(self.config[name]['id'],
@@ -2011,9 +2016,30 @@ class Interface(object):
 
         tag = curses.A_REVERSE
         tag_done = tag + color
+
+        try:
+            icolor = curses.color_pair(self.colors.id('title_incomplete'))
+            tag_notdone = tag + icolor
+        except KeyError:
+            tag_notdone = tag
+
         if focused:
+            tag = curses.A_REVERSE
+            try:
+                fcolor = curses.color_pair(self.colors.id('title_focused'))
+                tag = tag + fcolor
+                tag_done = tag + fcolor
+                tag_notdone = tag + fcolor
+            except KeyError:
+                fcolor = ''
+            try:
+                ficolor = curses.color_pair(self.colors.id('title_focused_inc'))
+                tag_notdone = ficolor
+            except KeyError:
+                ficolor = ''
             tag += curses.A_BOLD
             tag_done += curses.A_BOLD
+            tag_notdone += curses.A_BOLD
 
         if self.torrentname_is_progressbar:
             bar_width = int(float(width) * (float(percentDone)/100))
@@ -2029,7 +2055,7 @@ class Interface(object):
                     bar_complete += bar_incomplete[0]
                     bar_incomplete = bar_incomplete[1:]
             self.pad.addstr(ypos, 0, self.enc(bar_complete), tag_done)
-            self.pad.addstr(ypos, len_columns(bar_complete), self.enc(bar_incomplete), tag)
+            self.pad.addstr(ypos, len_columns(bar_complete), self.enc(bar_incomplete), tag_notdone)
         else:
             self.pad.addstr(ypos, 0, self.enc(title), tag_done)
 
