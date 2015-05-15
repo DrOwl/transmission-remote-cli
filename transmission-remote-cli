@@ -15,6 +15,7 @@
 # GNU General Public License for more details:                         #
 # http://www.gnu.org/licenses/gpl-3.0.txt                              #
 ########################################################################
+from __future__ import print_function
 
 VERSION = '1.7.0'
 
@@ -37,18 +38,15 @@ except ImportError:
         import json
         # ...but there is also an old json module that doesn't support .loads/.dumps.
         json.dumps ; json.dumps
-    except (ImportError,AttributeError):
+    except (ImportError, AttributeError):
         quit("Please install simplejson or Python 2.6 or higher.")
 
 import time
 import datetime
 import re
 import base64
-import httplib
-import urllib2
 import socket
 socket.setdefaulttimeout(None)
-import ConfigParser
 from optparse import OptionParser, SUPPRESS_HELP
 import sys
 import os
@@ -61,14 +59,34 @@ from textwrap import wrap
 from subprocess import call, Popen
 import netrc
 import operator
-import urlparse
 from distutils.spawn import find_executable
+
+try:
+    import httplib
+except ImportError:
+    import http.client
+
+try:
+    import urllib2
+except ImportError:
+    import urllib.request as urllib2
+
+try:
+    import ConfigParser
+except ImportError:
+    import configparser as ConfigParser
+
+try:
+    import urlparse
+except ImportError:
+    import urllib.parse as urlparse
+
 
 locale.setlocale(locale.LC_ALL, '')
 ENCODING = locale.getpreferredencoding() or 'UTF-8'
 
 # optional features provided by non-standard modules
-features = {'dns':False, 'geoip':False, 'ipy':False, 'clipboard':False}
+features = {'dns': False, 'geoip': False, 'ipy': False, 'clipboard': False}
 try:   import adns; features['dns'] = True     # resolve IP to host name
 except ImportError: features['dns'] = False
 
@@ -91,16 +109,16 @@ if features['geoip']:
     def country_code_by_addr_vany(geo_ip, geo_ip6, addr):
         if '.' in addr:
             return geo_ip.country_code_by_addr(addr)
-        if not ':' in addr:
+        if ':' not in addr:
             return None
         if features['ipy']:
             ip = IPy.IP(addr)
             if ip in IPV6_RANGE_6TO4:
-              addr = str(IPy.IP(ip.int() >> 80 & IPV4_ONES))
-              return geo_ip.country_code_by_addr(addr)
+                addr = str(IPy.IP(ip.int() >> 80 & IPV4_ONES))
+                return geo_ip.country_code_by_addr(addr)
             elif ip in IPV6_RANGE_TEREDO:
-              addr = str(IPy.IP(ip.int() & IPV4_ONES ^ IPV4_ONES))
-              return geo_ip.country_code_by_addr(addr)
+                addr = str(IPy.IP(ip.int() & IPV4_ONES ^ IPV4_ONES))
+                return geo_ip.country_code_by_addr(addr)
         if hasattr(geo_ip6, 'country_code_by_addr_v6'):
             return geo_ip6.country_code_by_addr_v6(addr)
 
@@ -149,7 +167,7 @@ config.set('Colors', 'file_prio_low',     'bg:yellow,fg:black')
 config.set('Colors', 'file_prio_off',     'bg:blue,fg:black')
 
 
-class ColorManager:
+class ColorManager(object):
     def __init__(self, config):
         self.config = dict()
         self.term_has_colors = curses.has_colors()
@@ -170,7 +188,7 @@ class ColorManager:
         # has something to do with how highlighting focus works.)
         bg_name = pair.split(',')[1].split(':')[1].upper()
         fg_name = pair.split(',')[0].split(':')[1].upper()
-        color_pair = { 'id': len(self.config.keys()) + 1 }
+        color_pair = {'id': len(self.config.keys()) + 1}
         try:
             color_pair['bg'] = eval('curses.COLOR_' + bg_name)
         except AttributeError:
@@ -181,16 +199,17 @@ class ColorManager:
             color_pair['fg'] = -1
         return color_pair
 
-    def id(self, name): return self.config[name]['id']
+    def id(self, name):
+        return self.config[name]['id']
 
 
-class Normalizer:
+class Normalizer(object):
     def __init__(self):
         self.values = {}
 
     def add(self, id, value, max):
-        if not id in self.values.keys():
-            self.values[id] = [ float(value) ]
+        if id not in self.values.keys():
+            self.values[id] = [float(value)]
         else:
             if len(self.values[id]) >= max:
                 self.values[id].pop(0)
@@ -198,18 +217,18 @@ class Normalizer:
         return self.get(id)
 
     def get(self, id):
-        if not id in self.values.keys():
+        if id not in self.values.keys():
             return 0.0
         return sum(self.values[id]) / len(self.values[id])
-
 
 
 authhandler = None
 session_id = 0
 vmode_id = -1
 
-# Handle communication with Transmission server.
-class TransmissionRequest:
+
+class TransmissionRequest(object):
+    """Handle communication with Transmission server."""
     def __init__(self, host, port, path, method=None, tag=None, arguments=None):
         self.url           = create_url(host, port, path)
         self.open_request  = None
@@ -218,8 +237,9 @@ class TransmissionRequest:
             self.set_request_data(method, tag, arguments)
 
     def set_request_data(self, method, tag, arguments=None):
-        request_data = {'method':method, 'tag':tag}
-        if arguments: request_data['arguments'] = arguments
+        request_data = {'method': method, 'tag': tag}
+        if arguments:
+            request_data['arguments'] = arguments
         self.http_request = urllib2.Request(url=self.url, data=json.dumps(request_data))
 
     def send_request(self):
@@ -235,7 +255,7 @@ class TransmissionRequest:
             pass
 
         # authentication
-        except urllib2.HTTPError, e:
+        except urllib2.HTTPError as e:
             try:
                 msg = html2text(str(e.read()))
             except:
@@ -249,7 +269,7 @@ class TransmissionRequest:
             except AttributeError:
                 quit(str(msg) + "\n", CONNECTION_ERROR)
 
-        except urllib2.URLError, msg:
+        except urllib2.URLError as msg:
             try:
                 reason = msg.reason[1]
             except IndexError:
@@ -259,7 +279,7 @@ class TransmissionRequest:
     def get_response(self):
         """Get response to previously sent request."""
 
-        if self.open_request == None:
+        if self.open_request is None:
             return {'result': 'no open request'}
         response = self.open_request.read()
         # work around regression in Python 2.6.5, caused by http://bugs.python.org/issue8797
@@ -276,8 +296,8 @@ class TransmissionRequest:
 # End of Class TransmissionRequest
 
 
-# Higher level of data exchange
-class Transmission:
+class Transmission(object):
+    """Higher level of data exchange"""
     STATUS_STOPPED       = 0   # Torrent is stopped
     STATUS_CHECK_WAIT    = 1   # Queued to check files
     STATUS_CHECK         = 2   # Checking files
@@ -291,20 +311,20 @@ class Transmission:
     TAG_SESSION_STATS   = 21
     TAG_SESSION_GET     = 22
 
-    LIST_FIELDS = [ 'id', 'name', 'downloadDir', 'status', 'trackerStats', 'desiredAvailable',
-                    'rateDownload', 'rateUpload', 'eta', 'uploadRatio',
-                    'sizeWhenDone', 'haveValid', 'haveUnchecked', 'addedDate',
-                    'uploadedEver', 'errorString', 'recheckProgress',
-                    'peersConnected', 'uploadLimit', 'downloadLimit',
-                    'uploadLimited', 'downloadLimited', 'bandwidthPriority',
-                    'peersSendingToUs', 'peersGettingFromUs',
-                    'seedRatioLimit', 'seedRatioMode', 'isPrivate', 'magnetLink']
+    LIST_FIELDS = ['id', 'name', 'downloadDir', 'status', 'trackerStats', 'desiredAvailable',
+                   'rateDownload', 'rateUpload', 'eta', 'uploadRatio',
+                   'sizeWhenDone', 'haveValid', 'haveUnchecked', 'addedDate',
+                   'uploadedEver', 'errorString', 'recheckProgress',
+                   'peersConnected', 'uploadLimit', 'downloadLimit',
+                   'uploadLimited', 'downloadLimited', 'bandwidthPriority',
+                   'peersSendingToUs', 'peersGettingFromUs',
+                   'seedRatioLimit', 'seedRatioMode', 'isPrivate', 'magnetLink']
 
-    DETAIL_FIELDS = [ 'files', 'priorities', 'wanted', 'peers', 'trackers',
-                      'activityDate', 'dateCreated', 'startDate', 'doneDate',
-                      'totalSize', 'leftUntilDone', 'comment', 'creator',
-                      'hashString', 'pieceCount', 'pieceSize', 'pieces',
-                      'downloadedEver', 'corruptEver', 'peersFrom' ] + LIST_FIELDS
+    DETAIL_FIELDS = ['files', 'priorities', 'wanted', 'peers', 'trackers',
+                     'activityDate', 'dateCreated', 'startDate', 'doneDate',
+                     'totalSize', 'leftUntilDone', 'comment', 'creator',
+                     'hashString', 'pieceCount', 'pieceSize', 'pieces',
+                     'downloadedEver', 'corruptEver', 'peersFrom'] + LIST_FIELDS
 
     def __init__(self, host, port, path, username, password):
         self.host = host
@@ -354,8 +374,8 @@ class Transmission:
 
         # Queue was implemented in Transmission v2.4
         if self.rpc_version >= 14:
-            self.LIST_FIELDS.append('queuePosition');
-            self.DETAIL_FIELDS.append('queuePosition');
+            self.LIST_FIELDS.append('queuePosition')
+            self.DETAIL_FIELDS.append('queuePosition')
 
         # set up request list
         self.requests = {'torrent-list':
@@ -368,23 +388,23 @@ class Transmission:
                              TransmissionRequest(host, port, path)}
 
         self.torrent_cache = []
-        self.status_cache  = dict()
+        self.status_cache = dict()
         self.torrent_details_cache = dict()
-        self.peer_progress_cache   = dict()
-        self.hosts_cache   = dict()
+        self.peer_progress_cache = dict()
+        self.hosts_cache = dict()
         self.geo_ips_cache = dict()
-        if features['dns']:   self.resolver = adns.init()
+        if features['dns']:
+            self.resolver = adns.init()
         if features['geoip']:
             self.geo_ip = GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
             try:
-                self.geo_ip6 = GeoIP.open_type(GeoIP.GEOIP_COUNTRY_EDITION_V6, GeoIP.GEOIP_MEMORY_CACHE);
+                self.geo_ip6 = GeoIP.open_type(GeoIP.GEOIP_COUNTRY_EDITION_V6, GeoIP.GEOIP_MEMORY_CACHE)
             except AttributeError: self.geo_ip6 = None
             except GeoIP.error: self.geo_ip6 = None
 
         # make sure there are no undefined values
         self.wait_for_torrentlist_update()
         self.requests['torrent-details'] = TransmissionRequest(self.host, self.port, self.path)
-
 
     def update(self, delay, tag_waiting_for=0):
         """Maintain up-to-date data."""
@@ -409,8 +429,6 @@ class Transmission:
         else:
             return None
 
-
-
     def parse_response(self, response):
         def get_main_tracker_domain(torrent):
             if torrent['trackerStats']:
@@ -431,10 +449,10 @@ class Transmission:
                 if t['downloadDir'][-1] != '/':
                     t['downloadDir'] += '/'
                 try:
-                    t['seeders']  = max(map(lambda x: x['seederCount'],  t['trackerStats']))
+                    t['seeders'] = max(map(lambda x: x['seederCount'],  t['trackerStats']))
                     t['leechers'] = max(map(lambda x: x['leecherCount'], t['trackerStats']))
                 except ValueError:
-                    t['seeders']  = t['leechers'] = -1
+                    t['seeders'] = t['leechers'] = -1
                 t['isIsolated'] = not self.can_has_peers(t)
                 t['mainTrackerDomain'] = get_main_tracker_domain(t)
 
@@ -462,14 +480,18 @@ class Transmission:
         return response['tag']
 
     def upgrade_peerlist(self):
-        for index,peer in enumerate(self.torrent_details_cache['peers']):
+        for index, peer in enumerate(self.torrent_details_cache['peers']):
             ip = peer['address']
             peerid = ip + self.torrent_details_cache['hashString']
 
             # make sure peer cache exists
-            if not self.peer_progress_cache.has_key(peerid):
-                self.peer_progress_cache[peerid] = {'last_progress':peer['progress'], 'last_update':time.time(),
-                                                    'download_speed':0, 'time_left':0}
+            if peerid not in self.peer_progress_cache:
+                self.peer_progress_cache[peerid] = {
+                    'last_progress': peer['progress'],
+                    'last_update': time.time(),
+                    'download_speed': 0,
+                    'time_left': 0
+                }
 
             this_peer = self.peer_progress_cache[peerid]
             this_torrent = self.torrent_details_cache
@@ -499,14 +521,14 @@ class Transmission:
             this_torrent['peers'][index].update(this_peer)
 
             # resolve and locate peer's ip
-            if features['dns'] and not self.hosts_cache.has_key(ip):
+            if features['dns'] and ip not in self.hosts_cache:
                 try:
                     self.hosts_cache[ip] = self.resolver.submit_reverse(ip, adns.rr.PTR)
                 except adns.Error:
                     pass
-            if features['geoip'] and not self.geo_ips_cache.has_key(ip):
+            if features['geoip'] and ip not in self.geo_ips_cache:
                 self.geo_ips_cache[ip] = country_code_by_addr_vany(self.geo_ip, self.geo_ip6, ip)
-                if self.geo_ips_cache[ip] == None:
+                if self.geo_ips_cache[ip] is None:
                     self.geo_ips_cache[ip] = '?'
 
     def get_rpc_version(self):
@@ -531,15 +553,16 @@ class Transmission:
 
     def get_torrent_by_id(self, id):
         i = 0
-        while self.torrent_cache[i]['id'] != id:  i += 1
+        while self.torrent_cache[i]['id'] != id:
+            i += 1
         if self.torrent_cache[i]['id'] == id:
             return self.torrent_cache[i]
         else:
             return None
 
-
     def get_torrent_details(self):
         return self.torrent_details_cache
+
     def set_torrent_details_id(self, id):
         if id < 0:
             self.requests['torrent-details'] = TransmissionRequest(self.host, self.port, self.path)
@@ -553,26 +576,23 @@ class Transmission:
     def get_geo_ips(self):
         return self.geo_ips_cache
 
-
     def get_free_space(self):
         request = TransmissionRequest(self.host, self.port, self.path, 'session-get', self.TAG_SESSION_GET)
         request.send_request()
         response = request.get_response()
         dir = response['arguments']['download-dir']
 
-        request = TransmissionRequest(self.host, self.port, self.path, 'free-space', 1, {'path':dir})
+        request = TransmissionRequest(self.host, self.port, self.path, 'free-space', 1, {'path': dir})
         request.send_request()
         response = request.get_response()
         free = response['arguments']['size-bytes']
 
         return free # free space in bytes
 
-
     def set_option(self, option_name, option_value):
         request = TransmissionRequest(self.host, self.port, self.path, 'session-set', 1, {option_name: option_value})
         request.send_request()
         self.wait_for_status_update()
-
 
     def set_rate_limit(self, direction, new_limit, torrent_id=-1):
         data = dict()
@@ -596,31 +616,29 @@ class Transmission:
         request.send_request()
         self.wait_for_torrentlist_update()
 
-
     def set_seed_ratio(self, ratio, torrent_id=-1):
         data = dict()
         if ratio == -1:
             ratio = None
-            mode  = 0   # Use global settings
+            mode = 0   # Use global settings
         elif ratio == 0:
             ratio = None
-            mode  = 2   # Seed regardless of ratio
+            mode = 2   # Seed regardless of ratio
         elif ratio >= 0:
-            mode  = 1   # Stop seeding at seedRatioLimit
+            mode = 1   # Stop seeding at seedRatioLimit
         else:
             return
 
         data['ids']            = [torrent_id]
         data['seedRatioLimit'] = ratio
-        data['seedRatioMode']  = mode
+        data['seedRatioMode'] = mode
         request = TransmissionRequest(self.host, self.port, self.path, 'torrent-set', 1, data)
         request.send_request()
         self.wait_for_torrentlist_update()
 
-
     def increase_bandwidth_priority(self, torrent_id):
         torrent = self.get_torrent_by_id(torrent_id)
-        if torrent == None or torrent['bandwidthPriority'] >= 1:
+        if torrent is None or torrent['bandwidthPriority'] >= 1:
             return False
         else:
             new_priority = torrent['bandwidthPriority'] + 1
@@ -631,7 +649,7 @@ class Transmission:
 
     def decrease_bandwidth_priority(self, torrent_id):
         torrent = self.get_torrent_by_id(torrent_id)
-        if torrent == None or torrent['bandwidthPriority'] <= -1:
+        if torrent is None or torrent['bandwidthPriority'] <= -1:
             return False
         else:
             new_priority = torrent['bandwidthPriority'] - 1
@@ -641,7 +659,7 @@ class Transmission:
             self.wait_for_torrentlist_update()
 
     def move_queue(self, torrent_id, new_position):
-        args = {'ids': [ torrent_id ] }
+        args = {'ids': [torrent_id]}
         if new_position in ('up', 'down', 'top', 'bottom'):
             method_name = 'queue-move-' + new_position
         elif isinstance(new_position, int):
@@ -656,7 +674,6 @@ class Transmission:
 
     def toggle_turtle_mode(self):
         self.set_option('alt-speed-enabled', not self.status_cache['alt-speed-enabled'])
-
 
     def add_torrent(self, location):
         args = {}
@@ -725,8 +742,10 @@ class Transmission:
         return response['result']
 
     def add_torrent_tracker(self, id, tracker):
-        data = { 'ids' : [id],
-                 'trackerAdd' : [tracker] }
+        data = {
+            'ids': [id],
+            'trackerAdd': [tracker]
+        }
         request = TransmissionRequest(self.host, self.port, self.path, 'torrent-set', 1, data)
         request.send_request()
         response = request.get_response()
@@ -774,7 +793,6 @@ class Transmission:
         elif current_priority == -1:
             self.set_file_priority(self.torrent_details_cache['id'], file_nums, 'off')
 
-
     def set_file_priority(self, torrent_id, file_nums, priority):
         request_data = {'ids': [torrent_id]}
         if priority == 'off':
@@ -796,10 +814,13 @@ class Transmission:
 
     def wait_for_torrentlist_update(self):
         self.wait_for_update(7)
+
     def wait_for_details_update(self):
         self.wait_for_update(77)
+
     def wait_for_status_update(self):
         self.wait_for_update(22)
+
     def wait_for_update(self, update_id):
         self.update(0) # send request
         while True:    # wait for response
@@ -816,7 +837,7 @@ class Transmission:
         elif torrent['isIsolated']:
             status = 'isolated'
         elif torrent['status'] == Transmission.STATUS_DOWNLOAD:
-            status = ('idle','downloading')[torrent['rateDownload'] > 0]
+            status = ('idle', 'downloading')[torrent['rateDownload'] > 0]
         elif torrent['status'] == Transmission.STATUS_DOWNLOAD_WAIT:
             status = 'will download (%d)' % torrent['queuePosition']
         elif torrent['status'] == Transmission.STATUS_SEED:
@@ -844,7 +865,7 @@ class Transmission:
                 return True
         # Torrent can use DHT?
         # ('dht-enabled' may be missing; assume DHT is available until we can say for sure)
-        if not self.status_cache.has_key('dht-enabled') or \
+        if 'dht-enabled' not in self.status_cache or \
                 (self.status_cache['dht-enabled'] and not torrent['isPrivate']):
             return True
         # No ways of finding peers remaining
@@ -873,7 +894,7 @@ class Transmission:
 
 
 # User Interface
-class Interface:
+class Interface(object):
     TRACKER_ITEM_HEIGHT = 6
 
     def __init__(self):
@@ -988,7 +1009,7 @@ class Interface:
         if server.get_rpc_version() >= 14:
             self.sort_options.append(('queuePosition', '_Queue Position'))
 
-        self.sort_options.append(('reverse','Re_verse'))
+        self.sort_options.append(('reverse', 'Re_verse'))
 
         self.file_index_map_id_cached = None
         self.sorted_files = None
@@ -998,11 +1019,9 @@ class Interface:
             self.run()
         except curses.error:
             self.restore_screen()
-            (exc_type, exc_value, exc_traceback) = sys.exc_info()
-            raise exc_type, exc_value, exc_traceback
+            raise
         else:
             self.restore_screen()
-
 
     def init_screen(self):
         os.environ['ESCDELAY'] = '0' # make escape usable
@@ -1019,14 +1038,7 @@ class Interface:
         except KeyError:
             pass
 
-        # http://bugs.python.org/issue2675
-        try:
-            del os.environ['LINES']
-            del os.environ['COLUMNS']
-        except KeyError:
-            pass
-
-        signal.signal(signal.SIGWINCH, lambda y,frame: self.get_screen_size())
+        signal.signal(signal.SIGWINCH, lambda y, frame: self.get_screen_size())
         self.get_screen_size()
 
     def restore_screen(self):
@@ -1058,7 +1070,7 @@ class Interface:
 
         if self.selected_torrent > -1:
             self.rateDownload_width = self.get_rateDownload_width([self.torrent_details])
-            self.rateUpload_width   = self.get_rateUpload_width([self.torrent_details])
+            self.rateUpload_width = self.get_rateUpload_width([self.torrent_details])
             self.torrent_title_width = self.width - self.rateUpload_width - 2
             # show downloading column only if torrents is downloading
             if self.torrent_details['status'] == Transmission.STATUS_DOWNLOAD:
@@ -1071,7 +1083,7 @@ class Interface:
             self.rateUpload_width   = self.get_rateUpload_width(self.visible_torrents)
             self.torrent_title_width = self.width - self.rateUpload_width - 2
             # show downloading column only if any downloading torrents are visible
-            if filter(lambda x: x['status']==Transmission.STATUS_DOWNLOAD, self.visible_torrents):
+            if filter(lambda x: x['status'] == Transmission.STATUS_DOWNLOAD, self.visible_torrents):
                 self.torrent_title_width -= self.rateDownload_width + 2
         else:
             self.visible_torrents = []
@@ -1092,7 +1104,7 @@ class Interface:
         return new_width
 
     def recalculate_torrents_per_page(self):
-        self.lines_per_entry   = 3 if self.blank_lines else 2
+        self.lines_per_entry = 3 if self.blank_lines else 2
         self.tlist_item_height = self.lines_per_entry if not self.compact_list else 1
         self.mainview_height = self.height - 2
         self.torrents_per_page = self.mainview_height / self.tlist_item_height
@@ -1113,10 +1125,10 @@ class Interface:
             self.stats = server.get_global_stats()
             self.draw_title_bar()  # show shortcuts and stuff
             self.draw_stats()      # show global states
-            self.screen.move(0,0)  # in case cursor can't be invisible
+            self.screen.move(0, 0)  # in case cursor can't be invisible
             self.handle_user_input()
             if self.exit_now:
-                sort_str = ','.join(map(lambda x: ('','reverse:')[x['reverse']] + x['name'], self.sort_orders))
+                sort_str = ','.join(map(lambda x: ('', 'reverse:')[x['reverse']] + x['name'], self.sort_orders))
                 config.set('Sorting', 'order',   sort_str)
                 config.set('Filtering', 'filter', self.filter_list)
                 config.set('Filtering', 'invert', str(self.filter_inverse))
@@ -1176,8 +1188,6 @@ class Interface:
         # Do nothing in other detail tabs
         elif self.selected_torrent > -1:
             pass
-        else:
-            self.add_torrent_by_hash()
 
     def a_key(self, c):
         # File list
@@ -1254,23 +1264,17 @@ class Interface:
             # 10^9 instead of 2^30 to be consistent with web interface
             free_space = float(server.get_free_space())/(10**9) # Bytes > GB
 
-        location = self.dialog_input_text("Add torrent from file or URL"
+        location = self.dialog_input_text("Add torrent from file, URL or pure hash"
                                 + (" - HDD (free): %.3f GB" % free_space if free_space else ""),
                                         homedir2tilde(os.getcwd()+os.sep), tab_complete='files')
 
         if location:
+            if re.match('^[0-9a-fA-F]{40}$', location):
+                location = 'magnet:?xt=urn:btih:{}'.format(location)
+
             error = server.add_torrent(tilde2homedir(location))
             if error:
                 msg = wrap("Couldn't add torrent \"%s\":" % location)
-                msg.extend(wrap(error, self.width-4))
-                self.dialog_ok("\n".join(msg))
-
-    def add_torrent_by_hash(self):
-        hash = self.dialog_input_text("Add torrent by hash")
-        if hash:
-            error = server.add_torrent('magnet:?xt=urn:btih:{}'.format(hash))
-            if error:
-                msg = wrap("Couldn't add torrent \"%s\":" % hash)
                 msg.extend(wrap(error, self.width-4))
                 self.dialog_ok("\n".join(msg))
 
@@ -1285,18 +1289,17 @@ class Interface:
         elif self.selected_torrent > -1 and self.details_category_focus == 1:
             self.open_torrent_file(c)
 
-
     def show_sort_order_menu(self, c):
         if self.selected_torrent == -1:
-           choice = self.dialog_menu('Sort order', self.sort_options,
-                                     map(lambda x: x[0]==self.sort_orders[-1]['name'], self.sort_options).index(True)+1)
-           if choice != -128:
-               if choice == 'reverse':
-                   self.sort_orders[-1]['reverse'] = not self.sort_orders[-1]['reverse']
-               else:
-                   self.sort_orders.append({'name':choice, 'reverse':False})
-                   while len(self.sort_orders) > 2:
-                       self.sort_orders.pop(0)
+            choice = self.dialog_menu('Sort order', self.sort_options,
+                    map(lambda x: x[0]==self.sort_orders[-1]['name'], self.sort_options).index(True)+1)
+            if choice != -128:
+                if choice == 'reverse':
+                    self.sort_orders[-1]['reverse'] = not self.sort_orders[-1]['reverse']
+                else:
+                    self.sort_orders.append({'name': choice, 'reverse': False})
+                    while len(self.sort_orders) > 2:
+                        self.sort_orders.pop(0)
 
     def show_stats(self, c):
         title = "Global statistics"
@@ -1330,8 +1333,8 @@ class Interface:
                                                           t_ratio=total_ratio,
                                                           t_duration=scale_time(total_time, 'long'))
 
-        width  = max(map(lambda x: len(x), message.split("\n"))) + 4
-        width  = min(self.width, width)
+        width = max(map(lambda x: len(x), message.split("\n"))) + 4
+        width = min(self.width, width)
         height = min(self.height, message.count("\n")+3)
         win = self.window(height, width, message=message, title=title)
         while True:
@@ -1416,7 +1419,7 @@ class Interface:
             try:
                 xerox.copy(magnet)
             except xerox.ToolNotFound:
-                message  = 'Could not copy to the clipboard\n'
+                message = 'Could not copy to the clipboard\n'
                 message += 'You probably do not have an appropriate\n'
                 message += 'tool to handle the clipboard on your system.\n'
                 message += 'Refer to the xerox documentation.'
@@ -1486,7 +1489,7 @@ class Interface:
     def remove_torrent_local_data(self, c):
         if self.focus > -1:
             name = self.torrents[self.focus]['name'][0:self.width - 15]
-            if self.dialog_yesno("Remove and delete %s?" % name, important=True) == True:
+            if self.dialog_yesno("Remove and delete %s?" % name, important=True) is True:
                 if self.selected_torrent > -1:  # leave details
                     server.set_torrent_details_id(-1)
                     self.selected_torrent = -1
@@ -1532,7 +1535,7 @@ class Interface:
 
     def movement_keys(self, c):
         if self.selected_torrent == -1 and len(self.torrents) > 0:
-            if   c == curses.KEY_UP or c == ord('k') or c == curses.ascii.ctrl(ord('p')):
+            if c == curses.KEY_UP or c == ord('k') or c == curses.ascii.ctrl(ord('p')):
                 self.focus, self.scrollpos = self.move_up(self.focus, self.scrollpos, self.tlist_item_height)
             elif c == curses.KEY_DOWN or c == ord('j') or c == curses.ascii.ctrl(ord('n')):
                 self.focus, self.scrollpos = self.move_down(self.focus, self.scrollpos, self.tlist_item_height,
@@ -1649,22 +1652,33 @@ class Interface:
                     self.prev_details()
 
     def rename_torrent_selected_file(self, c):
-        if self.selected_torrent > -1 and self.details_category_focus == 1 and self.focus_detaillist >= 0:
-            file_id = self.file_index_map[self.focus_detaillist]
-            file_path = self.torrent_details['files'][file_id]['name']
-            file_name = os.path.basename(file_path)
-            msg = 'Rename "%s"\n in "%s"\n to:' % (file_name, os.path.dirname(file_path))
-            newname = self.dialog_input_text(msg, file_name, tab_complete='dirs')
+        def rename_dialog(oldname):
+            filename = os.path.basename(oldname)
+            msg = 'Rename "%s"\nto:' % oldname
+            newname = self.dialog_input_text(msg, filename, tab_complete='dirs')
             if newname:
                 if len(newname.split(os.sep)) > 1:
-                    self.dialog_ok('Renaming files doesn\'t allow changing directories.')
+                    self.dialog_ok("Moving is not supported.")
                 else:
-                    result = server.rename_torrent_file(self.torrents[self.focus]['id'], file_path, newname)
+                    result = server.rename_torrent_file(self.torrents[self.focus]['id'], oldname, newname)
                     if result == 'success':
-                        self.torrent_details['files'][file_id]['name'] = os.path.join(os.path.dirname(file_path), newname)
-                        self.file_index_map_id_cached = None # force read
+                        return os.path.join(os.path.dirname(oldname), newname)
                     else:
-                        self.dialog_ok('Couldn\'t rename\n"%s"\nto\n"%s":\n%s' % (file_path, newname, result))
+                        dir = self.torrents[self.focus]['downloadDir']
+                        self.dialog_ok('Couldn\'t rename\n"%s"\nto\n"%s":\n%s' %
+                                       (oldname, newname, result))
+                        return False
+
+        if self.selected_torrent > -1 and self.details_category_focus == 1 and self.focus_detaillist >= 0:
+            # rename files in torrent
+            file_id = self.file_index_map[self.focus_detaillist]
+            newpath = rename_dialog(self.torrent_details['files'][file_id]['name'])
+            if newpath:
+                self.torrent_details['files'][file_id]['name'] = newpath
+                self.file_index_map_id_cached = None # force read
+        elif self.focus > -1:
+            # rename torrent folder
+            rename_dialog(self.torrents[self.focus]['name'])
 
     def select_unselect_file(self, c):
         if self.selected_torrent > -1 and self.details_category_focus == 1 and self.focus_detaillist >= 0:
@@ -1746,10 +1760,10 @@ class Interface:
 
             file_path = None
             possible_file_locations = [
-                    download_dir + file_name,
-                    download_dir + file_name + '.part',
-                    incomplete_dir + file_name,
-                    incomplete_dir + file_name + '.part'
+                download_dir + file_name,
+                download_dir + file_name + '.part',
+                incomplete_dir + file_name,
+                incomplete_dir + file_name + '.part'
             ]
 
             for f in possible_file_locations:
@@ -1762,7 +1776,7 @@ class Interface:
                 self.dialog_ok("Could not find file:\n%s" % (file_name))
                 return
 
-            viewer_cmd=[]
+            viewer_cmd = []
             for argstr in self.file_viewer.split(" "):
                 viewer_cmd.append(argstr.replace('%s', file_path))
             try:
@@ -1774,7 +1788,7 @@ class Interface:
                     devnull = open(os.devnull, 'wb')
                     Popen(viewer_cmd, stdout=devnull, stderr=devnull)
                     devnull.close()
-            except OSError, err:
+            except OSError as err:
                 self.get_screen_size()
                 self.dialog_ok("%s:\n%s" % (" ".join(viewer_cmd), err))
 
@@ -1862,7 +1876,7 @@ class Interface:
         # find focused_id
         self.focus = min(self.focus, len(self.torrents)-1)
         if self.torrents[self.focus]['id'] != self.focused_id:
-            for i,t in enumerate(self.torrents):
+            for i, t in enumerate(self.torrents):
                 if t['id'] == self.focused_id:
                     self.focus = i
                     break
@@ -1905,9 +1919,8 @@ class Interface:
                                                self.compact_list,
                                                ypos)
 
-        self.pad.refresh(0,0, 1,0, self.mainview_height,self.width-1)
+        self.pad.refresh(0, 0, 1, 0, self.mainview_height, self.width-1)
         self.screen.refresh()
-
 
     def draw_torrentlist_item(self, torrent, focused, compact, y):
         # the torrent name is also a progress bar
@@ -1937,28 +1950,30 @@ class Interface:
 
     def draw_downloadrate(self, torrent, ypos):
         self.pad.move(ypos, self.width-self.rateDownload_width-self.rateUpload_width-3)
-        self.pad.addch(curses.ACS_DARROW, (0,curses.A_BOLD)[torrent['downloadLimited']])
-        rate = ('',scale_bytes(torrent['rateDownload']))[torrent['rateDownload']>0]
+        self.pad.addch(curses.ACS_DARROW, (0, curses.A_BOLD)[torrent['downloadLimited']])
+        rate = ('', scale_bytes(torrent['rateDownload']))[torrent['rateDownload']>0]
         self.pad.addstr(rate.rjust(self.rateDownload_width),
                         curses.color_pair(self.colors.id('download_rate')) + curses.A_BOLD + curses.A_REVERSE)
+
     def draw_uploadrate(self, torrent, ypos):
         self.pad.move(ypos, self.width-self.rateUpload_width-1)
-        self.pad.addch(curses.ACS_UARROW, (0,curses.A_BOLD)[torrent['uploadLimited']])
-        rate = ('',scale_bytes(torrent['rateUpload']))[torrent['rateUpload']>0]
+        self.pad.addch(curses.ACS_UARROW, (0, curses.A_BOLD)[torrent['uploadLimited']])
+        rate = ('', scale_bytes(torrent['rateUpload']))[torrent['rateUpload']>0]
         self.pad.addstr(rate.rjust(self.rateUpload_width),
                         curses.color_pair(self.colors.id('upload_rate')) + curses.A_BOLD + curses.A_REVERSE)
+
     def draw_ratio(self, torrent, ypos):
         self.pad.addch(ypos+1, self.width-self.rateUpload_width-1, curses.ACS_DIAMOND,
-                       (0,curses.A_BOLD)[torrent['uploadRatio'] < 1 and torrent['uploadRatio'] >= 0])
+                       (0, curses.A_BOLD)[torrent['uploadRatio'] < 1 and torrent['uploadRatio'] >= 0])
         self.pad.addstr(ypos+1, self.width-self.rateUpload_width,
                         num2str(torrent['uploadRatio'], '%.02f').rjust(self.rateUpload_width),
                         curses.color_pair(self.colors.id('eta+ratio')) + curses.A_BOLD + curses.A_REVERSE)
+
     def draw_eta(self, torrent, ypos):
         self.pad.addch(ypos+1, self.width-self.rateDownload_width-self.rateUpload_width-3, curses.ACS_PLMINUS)
         self.pad.addstr(ypos+1, self.width-self.rateDownload_width-self.rateUpload_width-2,
                         scale_time(torrent['eta']).rjust(self.rateDownload_width),
                         curses.color_pair(self.colors.id('eta+ratio')) + curses.A_BOLD + curses.A_REVERSE)
-
 
     def draw_torrentlist_title(self, torrent, focused, width, ypos):
         if (torrent['status'] == Transmission.STATUS_SEED
@@ -2049,7 +2064,6 @@ class Interface:
         else:
             self.pad.addstr(ypos, 0, self.enc(title), tag_done)
 
-
     def draw_torrentlist_status(self, torrent, focused, ypos):
         peers = ''
         parts = [server.get_status(torrent)]
@@ -2069,20 +2083,22 @@ class Interface:
             parts[0] = parts[0].ljust(20)
 
             # seeds and leeches will be appended right justified later
-            peers  = "%5s seed%s " % (num2str(torrent['seeders']), ('s', ' ')[torrent['seeders']==1])
+            peers = "%5s seed%s " % (num2str(torrent['seeders']), ('s', ' ')[torrent['seeders']==1])
             peers += "%5s leech%s" % (num2str(torrent['leechers']), ('es', '  ')[torrent['leechers']==1])
 
             # show additional information if enough room
             if self.torrent_title_width - sum(map(lambda x: len(x), parts)) - len(peers) > 18:
                 uploaded = scale_bytes(torrent['uploadedEver'])
-                parts.append("%7s uploaded" % ('nothing',uploaded)[uploaded != '0B'])
+                parts.append("%7s uploaded" % ('nothing', uploaded)[uploaded != '0B'])
 
             if self.torrent_title_width - sum(map(lambda x: len(x), parts)) - len(peers) > 22:
                 parts.append("%4s peer%s connected" % (torrent['peersConnected'],
-                                                       ('s',' ')[torrent['peersConnected'] == 1]))
+                                                       ('s', ' ')[torrent['peersConnected'] == 1]))
 
-        if focused: tags = curses.A_REVERSE + curses.A_BOLD
-        else:       tags = 0
+        if focused:
+            tags = curses.A_REVERSE + curses.A_BOLD
+        else:
+            tags = 0
 
         remaining_space = self.torrent_title_width - sum(map(lambda x: len(x), parts), len(peers)) - 2
         delimiter = ' ' * int(remaining_space / (len(parts)))
@@ -2092,7 +2108,6 @@ class Interface:
         # make sure the peers element is always right justified
         line += ' ' * int(self.torrent_title_width - len(line) - len(peers)) + peers
         self.pad.addstr(ypos+1, 0, line, tags)
-
 
     def draw_details(self):
         self.torrent_details = server.get_torrent_details()
@@ -2131,9 +2146,8 @@ class Interface:
         elif self.details_category_focus == 4:
             self.draw_pieces_map(5)
 
-        self.pad.refresh(0,0, 1,0, self.height-2,self.width)
+        self.pad.refresh(0, 0, 1, 0, self.height - 2, self.width)
         self.screen.refresh()
-
 
     def draw_details_overview(self, ypos):
         t = self.torrent_details
@@ -2143,7 +2157,8 @@ class Interface:
 
         wanted = 0
         for i, file_info in enumerate(t['files']):
-            if t['wanted'][i] == True: wanted += t['files'][i]['length']
+            if t['wanted'][i] is True:
+                wanted += t['files'][i]['length']
 
         sizes = ['Size: ', "%s;  " % scale_bytes(t['totalSize'], 'long'),
                  "%s wanted;  " % (scale_bytes(wanted, 'long'),'everything') [t['totalSize'] == wanted]]
@@ -2239,7 +2254,6 @@ class Interface:
                                  (min_active_peers, len(active_peers))])
         else:
             info.append(['Swarm speed: ', "<no downloading peers connected>"])
-
 
         info.append(['Privacy: '])
         if t['isPrivate']:
@@ -2351,7 +2365,7 @@ class Interface:
         if self.file_index_map_id_cached != self.torrent_details['id']:
             self.file_index_map = {}
             self.sorted_files = sorted(self.torrent_details['files'], cmp=lambda x,y: cmp(x['name'], y['name']))
-            for index,file in enumerate(self.sorted_files):
+            for index, file in enumerate(self.sorted_files):
                 self.file_index_map[index] = self.torrent_details['files'].index(file)
             self.file_index_map_id_cached = self.torrent_details['id']
         files = sorted(self.torrent_details['files'], cmp=lambda x,y: cmp(x['name'], y['name']))
@@ -2404,12 +2418,12 @@ class Interface:
         # Reduce depth for each directory f has less than current_folder
         if self.blank_lines:
             for i in range(current_folder_len - same):
-               current_depth -= 1
-               filelist.append('  '*current_depth + ' '*31 + '/')
-               pos += 1
+                current_depth -= 1
+                filelist.append('  '*current_depth + ' '*31 + '/')
+                pos += 1
         else: # code duplication, but less calculation
             for i in range(current_folder_len - same):
-               current_depth -= 1
+                current_depth -= 1
 
         # Stepping out of a directory, but not into a new directory
         if f_len < current_folder_len and f_len == same:
@@ -2418,7 +2432,7 @@ class Interface:
         # Increase depth for each new directory that appears in f,
         # but not in current_directory
         while current_depth < f_len:
-            filelist.append('%s\\ %s' % ('  '*current_depth + ' '*31 , f[current_depth]))
+            filelist.append('%s\\ %s' % ('  '*current_depth + ' '*31, f[current_depth]))
             current_depth += 1
             pos += 1
         return [current_depth, pos]
@@ -2475,7 +2489,7 @@ class Interface:
                         host_name = "<not resolvable>"
                 except adns.NotReady:
                     host_name = "<resolving>"
-                except adns.Error, msg:
+                except adns.Error as msg:
                     host_name = msg
 
             upload_tag = download_tag = line_tag = 0
@@ -2517,6 +2531,7 @@ class Interface:
 
     def draw_trackerlist(self, ypos):
         top = ypos - 1
+
         def addstr(ypos, xpos, *args):
             if ypos > top and ypos < self.height - 2:
                 self.pad.addstr(ypos, xpos, *args)
@@ -2588,7 +2603,6 @@ class Interface:
                 self.pad.addstr(ypos+i, xpos, line, curses.A_UNDERLINE)
         return i
 
-
     def draw_pieces_map(self, ypos):
         pieces = self.torrent_details['pieces']
         piece_count = self.torrent_details['pieceCount']
@@ -2600,13 +2614,15 @@ class Interface:
 
         start = self.scrollpos_detaillist * map_width
         end = min(start + (self.height - ypos - 3) * map_width, piece_count)
-        if end <= start: return
+        if end <= start:
+            return
         block = ord(pieces[start >> 3]) << (start & 7)
 
         format = "%%%dd" % (margin - 2)
         for counter in xrange(start, end):
             if counter % map_width == 0:
-                ypos += 1 ; xpos = margin
+                ypos += 1
+                xpos = margin
                 self.pad.addstr(ypos, 1, format % counter, curses.A_BOLD)
             else:
                 xpos += 1
@@ -2654,9 +2670,6 @@ class Interface:
             self.details_category_focus -= 1
         self.pad.erase()
 
-
-
-
     def move_up(self, focus, scrollpos, step_size):
         if focus < 0: focus = -1
         else:
@@ -2694,10 +2707,6 @@ class Interface:
         focus     = list_height - 1
         scrollpos = max(0, (list_height - elements_per_page) * step_size)
         return focus, scrollpos
-
-
-
-
 
     def draw_stats(self):
         self.screen.insstr(self.height-1, 0, ' '.center(self.width), curses.A_REVERSE)
@@ -2787,12 +2796,11 @@ class Interface:
                            curses.color_pair(self.colors.id('upload_rate'))
                            + curses.A_REVERSE + curses.A_BOLD)
 
-
-
     def draw_title_bar(self):
         self.screen.insstr(0, 0, ' '.center(self.width), curses.A_REVERSE)
         self.draw_connection_status()
         self.draw_quick_help()
+
     def draw_connection_status(self):
         status = "Transmission %s @ %s:%s" % (server.version, server.host, server.port)
         if cmd_args.DEBUG:
@@ -2824,7 +2832,6 @@ class Interface:
         line = line[0:self.width]
         self.screen.insstr(0, self.width-len(line), line, curses.A_REVERSE)
 
-
     def list_key_bindings(self):
         title = 'Help Menu'
         message = "           F1/?  Show this help\n" + \
@@ -2837,9 +2844,9 @@ class Interface:
                   "              N  Start torrent now\n" + \
                   "            v/y  Verify torrent\n" + \
                   "              m  Move torrent\n" + \
+                  "              F  Rename torrent/file\n" + \
                   "              n  Reannounce torrent\n" + \
                   "              a  Add torrent\n" + \
-                  "              A  Add torrent by hash\n" + \
                   "              S  Show upload/download stats\n" + \
                   "          Del/r  Remove torrent and keep content\n" + \
                   "    Shift+Del/R  Remove torrent and delete content\n"
@@ -2892,7 +2899,6 @@ class Interface:
                 if self.details_category_focus == 1:  # files
                     if self.focus_detaillist > -1:
                         message += "     Left/Right  Decrease/Increase file priority\n"
-                        message += "              F  Rename file\n"
                     message += "        Up/Down  Select file\n" + \
                                "          Space  Select/Deselect focused file\n" + \
                                "              a  Select/Deselect all files\n" + \
@@ -3006,13 +3012,13 @@ class Interface:
             elif c == 27 or c == curses.KEY_BREAK:
                 return -1
 
-
-    # tab_complete values:
-    #             'files': complete with any files/directories
-    #              'dirs': complete only with directories
-    #      'torrent_list': complete with names from the torrent list
-    #     any false value: do not complete
     def dialog_input_text(self, message, input='', on_change=None, on_enter=None, tab_complete=None):
+        """tab_complete values:
+                'files': complete with any files/directories
+                'dirs': complete only with directories
+                'torrent_list': complete with names from the torrent list
+                any false value: do not complete
+        """
         width  = self.width - 4
         textwidth = self.width - 8
         height = message.count("\n") + 4
@@ -3072,7 +3078,7 @@ class Interface:
                 index += 1
                 if on_change: on_change(input)
             elif c == ord('\t') and tab_complete:
-                possible_choices = [];
+                possible_choices = []
                 if tab_complete in ('files', 'dirs'):
                     (dirname, filename) = os.path.split(tilde2homedir(input))
                     if not dirname:
@@ -3081,7 +3087,7 @@ class Interface:
                         possible_choices = [ os.path.join(dirname, choice) for choice in os.listdir(dirname)
                                              if choice.startswith(filename) ]
                     except OSError:
-                        continue;
+                        continue
                     if tab_complete == 'dirs':
                         possible_choices = [ d for d in possible_choices
                                              if os.path.isdir(d) ]
@@ -3095,7 +3101,7 @@ class Interface:
                             input += os.sep
                         input = homedir2tilde(input)
                     index = len(input)
-                    if on_change: on_change(input);
+                    if on_change: on_change(input)
             if on_change: win.redrawwin()
 
     def dialog_search_torrentlist(self, c):
@@ -3107,7 +3113,6 @@ class Interface:
     def increment_search(self, input):
         self.search_focus += 1
         self.draw_torrent_list(input)
-
 
     def dialog_input_number(self, message, current_value,
                             cursorkeys=True, floating_point=False, allow_empty=False,
@@ -3264,7 +3269,6 @@ class Interface:
             options.append(('Blan_k lines in non-compact', ('no','yes')[self.blank_lines]))
             options.append(('File _Viewer', "%s" % self.file_viewer))
 
-
             max_len = max([sum([len(re.sub('_', '', x)) for x in y[0]]) for y in options])
             win_width = min(max(len(self.file_viewer)+5, 15), self.width+max_len)
             win = self.window(len(options)+2, max_len+win_width, '', "Global Options")
@@ -3382,7 +3386,6 @@ class Interface:
 # End of class Interface
 
 
-
 def percent(full, part):
     try: percent = 100/(float(full) / float(part))
     except ZeroDivisionError: percent = 0.0
@@ -3489,7 +3492,6 @@ def scale_bytes(bytes, type='short'):
         scaled_bytes = round((bytes / 1024.0), 1)
         unit = 'K'
 
-
     # handle 0 bytes special
     if bytes == 0 and type == 'long':
         return 'nothing'
@@ -3508,8 +3510,11 @@ def scale_bytes(bytes, type='short'):
 
 def homedir2tilde(path):
     return re.sub(r'^'+os.environ['HOME'], '~', path)
+
+
 def tilde2homedir(path):
     return re.sub(r'^~', os.environ['HOME'], path)
+
 
 def html2text(str):
     str = re.sub(r'</h\d+>', "\n", str)
@@ -3517,12 +3522,16 @@ def html2text(str):
     str = re.sub(r'<[^>]*?>', '', str)
     return str
 
+
 def hide_cursor():
     try: curses.curs_set(0)   # hide cursor if possible
     except curses.error: pass # some terminals seem to have problems with that
+
+
 def show_cursor():
     try: curses.curs_set(1)
     except curses.error: pass
+
 
 def wrap_multiline(text, width, initial_indent='', subsequent_indent=None):
     if subsequent_indent is None:
@@ -3536,6 +3545,7 @@ def wrap_multiline(text, width, initial_indent='', subsequent_indent=None):
                 initial_indent=initial_indent, subsequent_indent=subsequent_indent):
             yield line
         initial_indent = subsequent_indent
+
 
 def ljust_columns(text, max_width, padchar=' '):
     """ Returns a string that is exactly <max_width> display columns wide,
@@ -3559,6 +3569,7 @@ def ljust_columns(text, max_width, padchar=' '):
         chars.append(padchar)
         columns += 1
     return ''.join(chars)
+
 
 def len_columns(text):
     """ Returns the amount of columns that <text> would occupy. """
@@ -3593,6 +3604,7 @@ def debug(data):
             file.write("\n====================\n" + pp.pformat(data) + "\n====================\n\n")
         file.close
 
+
 def quit(msg='', exitcode=0):
     try:
         curses.endwin()
@@ -3603,7 +3615,7 @@ def quit(msg='', exitcode=0):
     if not msg and not exitcode:
         save_config(cmd_args.configfile)
     else:
-        print >> sys.stderr, msg,
+        print(msg, file=sys.stderr)
     os._exit(exitcode)
 
 
@@ -3631,6 +3643,7 @@ def explode_connection_string(connection):
         quit("Wrong connection pattern: %s\n" % connection)
     return host, port, path, username, password
 
+
 def create_url(host, port, path):
     url = '%s:%d/%s' % (host, port, path)
     url = url.replace('//', '/')   # double-/ doesn't work for some reason
@@ -3638,6 +3651,7 @@ def create_url(host, port, path):
         return 'https://%s' % url
     else:
         return 'http://%s' % url
+
 
 def read_netrc(file=os.environ['HOME'] + '/.netrc', hostname=None):
     try:
@@ -3650,14 +3664,14 @@ def read_netrc(file=os.environ['HOME'] + '/.netrc', hostname=None):
             netrc.netrc(file).hosts[hostname]
         except KeyError:
             if hostname != 'localhost':
-                print "Unknown machine in %s: %s" % (file, hostname)
+                print("Unknown machine in %s: %s" % (file, hostname))
                 if login and password:
-                    print "Using default login: %s" % login
+                    print("Using default login: %s" % login)
                 else:
                     exit(CONFIGFILE_ERROR)
-    except netrc.NetrcParseError, e:
+    except netrc.NetrcParseError as e:
         quit("Error in %s at line %s: %s\n" % (e.filename, e.lineno, e.msg))
-    except IOError, msg:
+    except IOError as msg:
         quit("Cannot read %s: %s\n" % (file, msg))
     return login, password
 
@@ -3679,26 +3693,29 @@ def create_config(option, opt_str, value, parser):
     if dir != '' and not os.path.isdir(dir):
         try:
             os.makedirs(dir)
-        except OSError, msg:
-            print msg
+        except OSError as msg:
+            print(msg)
             exit(CONFIGFILE_ERROR)
 
     # write file
     if not save_config(configfile, force=True):
         exit(CONFIGFILE_ERROR)
-    print "Wrote config file: %s" % configfile
+    print("Wrote config file: %s" % configfile)
     exit(0)
+
 
 def save_config(filepath, force=False):
     if force or os.path.isfile(filepath):
         try:
             config.write(open(filepath, 'w'))
-            os.chmod(filepath, 0600)  # config may contain password
+            os.chmod(filepath, 0o600)  # config may contain password
             return 1
-        except IOError, msg:
-            print >> sys.stderr, "Cannot write config file %s:\n%s" % (filepath, msg)
+        except IOError as msg:
+            print("Cannot write config file %s:\n%s" % (filepath, msg),
+                  file=sys.stderr)
             return 0
     return -1
+
 
 def parse_sort_str(sort_str):
     sort_orders = []
@@ -3709,6 +3726,7 @@ def parse_sort_str(sort_str):
         else:
             sort_orders.append( { 'name':x[0], 'reverse':False } )
     return sort_orders
+
 
 def show_version(option, opt_str, value, parser):
     quit("transmission-remote-cli %s  (supports Transmission %s-%s)\n" % \
@@ -3736,7 +3754,6 @@ if __name__ == '__main__':
                       help="Everything passed to the debug() function will be added to the file debug.log.")
     (cmd_args, transmissionremote_args) = parser.parse_args()
 
-
     # read config from config file
     config.read(cmd_args.configfile)
 
@@ -3755,8 +3772,6 @@ if __name__ == '__main__':
     if cmd_args.ssl:
         config.set('Connection', 'ssl', 'True')
 
-
-
     # forward arguments after '--' to transmission-remote
     if transmissionremote_args:
         cmd = ['transmission-remote', '%s:%s' %
@@ -3773,17 +3788,16 @@ if __name__ == '__main__':
         if config.get('Connection', 'username') and config.get('Connection', 'password'):
             cmd_print = cmd
             cmd_print.extend(['--auth', '%s:PASSWORD' % config.get('Connection', 'username')])
-            print "EXECUTING:\n%s\nRESPONSE:" % ' '.join(cmd_print)
+            print("EXECUTING:\n%s\nRESPONSE:" % ' '.join(cmd_print))
             cmd.extend(['--auth', '%s:%s' % (config.get('Connection', 'username'), config.get('Connection', 'password'))])
         else:
-            print "EXECUTING:\n%s\nRESPONSE:" % ' '.join(cmd)
+            print("EXECUTING:\n%s\nRESPONSE:" % ' '.join(cmd))
 
         try:
             retcode = call(cmd)
-        except OSError, msg:
+        except OSError as msg:
             quit("Could not execute the above command: %s\n" % msg.strerror, 128)
         quit('', retcode)
-
 
     norm = Normalizer()
     server = Transmission(config.get('Connection', 'host'),
@@ -3792,4 +3806,3 @@ if __name__ == '__main__':
                           config.get('Connection', 'username'),
                           config.get('Connection', 'password'))
     Interface()
-

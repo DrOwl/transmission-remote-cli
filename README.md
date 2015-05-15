@@ -1,3 +1,16 @@
+**Please don't request or submit new features that would add more than a
+  handful (literally!) of lines of code.**
+
+Given the messy implementation, adding functionality either causes new bugs
+that nobody wants to fix or it adds cruft that I won't be able to understand
+two weeks later because there's already so much cruft that mostly works but
+without any regards to the bigger picture. (Also, there is not much of a
+bigger picture, it's hacks all the way down (and maybe even up). Imagine a
+house that is hold together by the corpses in the drywall.)
+
+**This doesn't mean the project is dead.**  
+I'll always accept any bugfixes. (Unless they cause new bugs.)
+
 ## About
 
 A console client for the BitTorrent client [Transmission](http://www.transmissionbt.com/ "Transmission Homepage").
@@ -7,7 +20,7 @@ A console client for the BitTorrent client [Transmission](http://www.transmissio
 
 - [Arch Linux](https://www.archlinux.org/packages/community/any/transmission-remote-cli/)
 - [Debian](http://packages.debian.org/search?keywords=transmission-remote-cli)
-- [Fedora](https://admin.fedoraproject.org/pkgdb/acls/list/?searchwords=transmission-remote-cli)
+- [Fedora](https://admin.fedoraproject.org/pkgdb/package/transmission-remote-cli/)
 - [OpenSUSE](http://software.opensuse.org/package/transmission-remote-cli?search_term=transmission-remote-cli)
 - [Ubuntu](http://packages.ubuntu.com/search?keywords=transmission-remote-cli)
 
@@ -88,7 +101,7 @@ torrent files with transmission-remote-cli.
 
 ## Copyright
 
-Released under the GPLv3 license, see [COPYING](transmission-remote-cli/blob/master/COPYING) for details.
+Released under the GPLv3 license, see [COPYING](COPYING) for details.
 
 
 ## Contact
