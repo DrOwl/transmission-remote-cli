@@ -144,27 +144,25 @@ config.set('Misc', 'torrentname_is_progressbar', 'True')
 config.set('Misc', 'file_viewer', 'xdg-open %%s')
 config.set('Misc', 'file_open_in_terminal', 'True')
 config.add_section('Colors')
-config.set('Colors', 'title_seed',        'bg:green,fg:black')
-config.set('Colors', 'title_download',    'bg:blue,fg:black')
-config.set('Colors', 'title_idle',        'bg:cyan,fg:black')
-config.set('Colors', 'title_verify',      'bg:magenta,fg:black')
-config.set('Colors', 'title_paused',      'bg:black,fg:white')
-config.set('Colors', 'title_error',       'bg:red,fg:white')
-config.set('Colors', 'title_incomplete',  'default')
-config.set('Colors', 'title_focused',     'default')
-config.set('Colors', 'title_focused_inc', 'default')
-config.set('Colors', 'download_rate',     'bg:black,fg:blue')
-config.set('Colors', 'upload_rate',       'bg:black,fg:red')
-config.set('Colors', 'eta+ratio',         'bg:black,fg:white')
-config.set('Colors', 'filter_status',     'bg:red,fg:black')
-config.set('Colors', 'dialog',            'bg:black,fg:white')
-config.set('Colors', 'dialog_important',  'bg:red,fg:black')
-config.set('Colors', 'button',            'bg:white,fg:black')
-config.set('Colors', 'button_focused',    'bg:black,fg:white')
-config.set('Colors', 'file_prio_high',    'bg:red,fg:black')
-config.set('Colors', 'file_prio_normal',  'bg:white,fg:black')
-config.set('Colors', 'file_prio_low',     'bg:yellow,fg:black')
-config.set('Colors', 'file_prio_off',     'bg:blue,fg:black')
+config.set('Colors', 'title_seed',       'bg:green,fg:black')
+config.set('Colors', 'title_download',   'bg:blue,fg:black')
+config.set('Colors', 'title_idle',       'bg:cyan,fg:black')
+config.set('Colors', 'title_verify',     'bg:magenta,fg:black')
+config.set('Colors', 'title_paused',     'bg:black,fg:white')
+config.set('Colors', 'title_error',      'bg:red,fg:white')
+config.set('Colors', 'title_incomplete', 'bg:black,fg:white')
+config.set('Colors', 'download_rate',    'bg:black,fg:blue')
+config.set('Colors', 'upload_rate',      'bg:black,fg:red')
+config.set('Colors', 'eta+ratio',        'bg:black,fg:white')
+config.set('Colors', 'filter_status',    'bg:red,fg:black')
+config.set('Colors', 'dialog',           'bg:black,fg:white')
+config.set('Colors', 'dialog_important', 'bg:red,fg:black')
+config.set('Colors', 'button',           'bg:white,fg:black')
+config.set('Colors', 'button_focused',   'bg:black,fg:white')
+config.set('Colors', 'file_prio_high',   'bg:red,fg:black')
+config.set('Colors', 'file_prio_normal', 'bg:white,fg:black')
+config.set('Colors', 'file_prio_low',    'bg:yellow,fg:black')
+config.set('Colors', 'file_prio_off',    'bg:blue,fg:black')
 
 
 class ColorManager(object):
@@ -175,7 +173,7 @@ class ColorManager(object):
         if self.term_has_colors:
             curses.use_default_colors()
         for name in config.keys():
-            if config[name]  != 'default':
+            if config[name]  != 'invert':
               self.config[name] = self._parse_color_pair(config[name])
               if self.term_has_colors:
                   curses.init_pair(self.config[name]['id'],
@@ -2026,22 +2024,10 @@ class Interface(object):
             icolor = curses.color_pair(self.colors.id('title_incomplete'))
             tag_notdone = tag + icolor
         except KeyError:
+        #else:
             tag_notdone = tag
 
         if focused:
-            tag = curses.A_REVERSE
-            try:
-                fcolor = curses.color_pair(self.colors.id('title_focused'))
-                tag = tag + fcolor
-                tag_done = tag + fcolor
-                tag_notdone = tag + fcolor
-            except KeyError:
-                fcolor = ''
-            try:
-                ficolor = curses.color_pair(self.colors.id('title_focused_inc'))
-                tag_notdone = ficolor
-            except KeyError:
-                ficolor = ''
             tag += curses.A_BOLD
             tag_done += curses.A_BOLD
             tag_notdone += curses.A_BOLD
